@@ -4,6 +4,46 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 
 
+class PostQuerySet(models.QuerySet):
+
+    def popular(self):
+        """
+        In: QuerySet of Post objects
+        Out: QuerySet of Post objects
+
+        Returns QS with popular posts in descending (most popular first) and
+        field with likes count 'likes_count'
+        """
+
+        popular_posts = self.annotate(likes_count=Count('likes')).order_by(
+            '-likes_count')
+        return popular_posts
+
+    def fetch_with_comments_count(self):
+        """
+        In: QS of Post objects
+        Out: QS of Post objects with added 'comments_counter'
+
+        Returns QS of Posts objects with comments counter field
+        'comments_count'.
+        This method is must-have if IN QuerySet already use annotate(),
+        because method doesn't have doubled annotate() DB-lag issue.
+        """
+
+        post_ids = [post.id for post in self]
+        posts_with_comments = Post.objects.filter(id__in=post_ids) \
+            .annotate(comments_count=Count('comments')) \
+            .order_by('-comments_count')
+        ids_and_comments = posts_with_comments.values_list(
+            'id',
+            'comments_count')
+        message_count_for_id = dict(ids_and_comments)
+        for post in self:
+            post.comments_count = message_count_for_id[post.id]
+
+        return self
+
+
 class Post(models.Model):
     title = models.CharField('Заголовок', max_length=200)
     text = models.TextField('Текст')
@@ -37,10 +77,11 @@ class Post(models.Model):
         verbose_name = 'пост'
         verbose_name_plural = 'посты'
 
+    objects = PostQuerySet.as_manager()
+
 
 class TagQuerySet(models.QuerySet):
     def popular(self):
-        # objects.annotate(num_posts=Count('posts')).order_by('-num_posts')
         popular_tags = self.annotate(num_posts=Count('posts')).order_by(
             '-num_posts')
         return popular_tags
