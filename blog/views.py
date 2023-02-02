@@ -1,6 +1,8 @@
 from django.shortcuts import render
 from blog.models import Post, Tag, User
 from django.db.models import Count, Prefetch
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import Http404
 
 
 def serialize_post(post):
@@ -58,9 +60,12 @@ def index(request):
 def post_detail(request, slug):
     queryset_tags = Tag.objects.annotate(posts_count=Count('posts'))
     prefetched_tags = Prefetch('tags', queryset=queryset_tags)
-    post = Post.objects.annotate(likes_count=Count('likes')) \
-        .prefetch_related(prefetched_tags) \
-        .get(slug=slug)
+    try:
+        post = Post.objects.annotate(likes_count=Count('likes')) \
+            .prefetch_related(prefetched_tags) \
+            .get(slug=slug)
+    except ObjectDoesNotExist:
+        raise Http404("Can't get Post model object")
 
     comments = post.comments.all().select_related('author')
 
@@ -122,10 +127,13 @@ def tag_filter(request, tag_title):
     most_popular_tags = Tag.objects.popular() \
         .prefetch_related(prefetched_posts)[:5]
 
-    tag = Tag.objects.get(title=tag_title)
-    related_posts = tag.posts.all() \
-        .prefetch_related(prefetched_tags, prefetched_authors)[:20] \
-        .fetch_with_comments_count()
+    try:
+        tag = Tag.objects.get(title=tag_title)
+        related_posts = tag.posts.all() \
+            .prefetch_related(prefetched_tags, prefetched_authors)[:20] \
+            .fetch_with_comments_count()
+    except ObjectDoesNotExist:
+        raise Http404("Can't get Tag model object")
 
     context = {
         'tag': tag.title,
