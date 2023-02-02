@@ -67,7 +67,7 @@ def post_detail(request, slug):
     except ObjectDoesNotExist:
         raise Http404("Can't get Post model object")
 
-    comments = post.comments.all().select_related('author')
+    comments = post.comments.select_related('author')
 
     serialized_comments = []
     for comment in comments:
@@ -129,8 +129,8 @@ def tag_filter(request, tag_title):
 
     try:
         tag = Tag.objects.get(title=tag_title)
-        related_posts = tag.posts.all() \
-            .prefetch_related(prefetched_tags, prefetched_authors)[:20] \
+        related_posts = tag.posts.prefetch_related(
+            prefetched_tags, prefetched_authors)[:20] \
             .fetch_with_comments_count()
     except ObjectDoesNotExist:
         raise Http404("Can't get Tag model object")
